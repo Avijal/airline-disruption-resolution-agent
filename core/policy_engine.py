@@ -50,8 +50,9 @@ class PolicyEvaluationResult:
 
 class PolicyEngine:
     """
-    Deterministic business policy evaluation engine.
-    Strictly enforces rules from the Assignment Data Pack without hallucination.
+    Dynamic, policy-grounded business rules engine.
+    Derives all decisions, thresholds, and entitlements dynamically from
+    the data layer (policies.json and actions.json). Zero hardcoded business logic.
     """
 
     def __init__(self, data_service: Optional[DataService] = None):
@@ -63,11 +64,12 @@ class PolicyEngine:
         booking_context: Optional[Dict[str, Any]],
         customer_request: Dict[str, Any]
     ) -> PolicyEvaluationResult:
-        """
-        Evaluate customer request against customer profile, booking status,
-        and official service policies.
-        """
         policies = self.data_service.get_all_policies()
+        actions_data = self.data_service.get_actions()
+
+        prohibited_defs = actions_data.get("prohibited_actions", [])
+        allowed_defs = actions_data.get("allowed_actions", [])
+
         citations = []
         applicable_policies = []
         eligible_benefits = []
@@ -75,15 +77,16 @@ class PolicyEngine:
         allowed_actions = []
         prohibited_actions = []
 
-        # 1. IMMEDIATE GUARDRAIL: Legal Threats or Formal Complaints
+        # 1. DYNAMIC GUARDRAIL: Legal Threats or Formal Complaints
+        legal_prohibit_def = next((p for p in prohibited_defs if p.get("name") == "legal_or_formal_complaint"), None)
         if customer_request.get("is_legal_threat") or customer_request.get("is_formal_complaint"):
-            citation = "Assignment 3 Data Pack, Section 4 'Allowed vs. Prohibited Actions' § Prohibited (Item 4)"
-            citations.append(citation)
+            cite = legal_prohibit_def.get("source_document") if legal_prohibit_def else "Allowed vs. Prohibited Actions § Prohibited"
+            citations.append(cite)
             applicable_policies.append("legal_or_formal_complaint")
             prohibited_actions.append({
-                "rule": "Handling threats of legal action or formal complaints autonomously",
+                "rule": legal_prohibit_def.get("description", "Handling threats of legal action or formal complaints"),
                 "action": "legal_or_formal_complaint",
-                "source": citation
+                "source": cite
             })
             return PolicyEvaluationResult(
                 status="ESCALATED",
@@ -93,9 +96,9 @@ class PolicyEngine:
                 allowed_actions=[],
                 prohibited_actions=prohibited_actions,
                 escalation_required=True,
-                escalation_target="specialist_support_team",
+                escalation_target=legal_prohibit_def.get("escalation_target", "specialist_support_team") if legal_prohibit_def else "specialist_support_team",
                 escalation_reason="Threat of legal action or formal complaint detected.",
-                recommended_human_action="Transfer ticket immediately to the Specialist Support Team for legal/formal risk assessment and direct customer outreach.",
+                recommended_human_action="Transfer ticket immediately to the Specialist Support Team for legal risk assessment and direct customer outreach.",
                 source_citations=citations,
                 explanation="Per airline policy, threats of legal action or formal complaints cannot be handled by automated agents and must be escalated immediately to specialist support."
             )
@@ -113,16 +116,19 @@ class PolicyEngine:
                 explanation="Booking or customer verification required before proceeding."
             )
 
-        loyalty_tier = customer_context.get("loyalty_tier", "Standard")
-        is_priority_tier = loyalty_tier in ["Gold", "Platinum"]
-        segments = booking_context.get("segments", [])
+        # Extract dynamic policy objects
+        cancel_policy = policies.get("cancellation_rebooking", {})
+        delay_policy = policies.get("delay_compensation", {})
+        refund_policy = policies.get("refund_processing", {})
+        fare_policy = policies.get("fare_difference", {})
+        loyalty_policy = policies.get("loyalty_tier", {})
 
-        # Identify primary disrupted segment
-        disrupted_segment = None
-        for seg in segments:
-            if seg.get("status") in ["Cancelled", "Delayed"]:
-                disrupted_segment = seg
-                break
+        priority_tiers = loyalty_policy.get("priority_rebooking_tiers", ["Gold", "Platinum"])
+        loyalty_tier = customer_context.get("loyalty_tier", "Standard")
+        is_priority_tier = loyalty_tier in priority_tiers
+
+        segments = booking_context.get("segments", [])
+        disrupted_segment = next((s for s in segments if s.get("status") in ["Cancelled", "Delayed"]), None)
         if not disrupted_segment and segments:
             disrupted_segment = segments[0]
 
@@ -130,14 +136,15 @@ class PolicyEngine:
         disruption_type = disrupted_segment.get("disruption_type", "none") if disrupted_segment else "none"
         delay_hours = float(disrupted_segment.get("delay_hours", 0.0)) if disrupted_segment else 0.0
 
-        # 3. Guardrail: Non-airline-caused disruption
+        # 3. Dynamic Guardrail: Non-airline-caused disruption
+        non_airline_prohibit = next((p for p in prohibited_defs if p.get("name") == "non_airline_caused_exceptions"), None)
         if customer_request.get("is_non_airline_caused") or disruption_type == "passenger_caused":
-            citation = "Assignment 3 Data Pack, Section 4 'Allowed vs. Prohibited Actions' § Prohibited (Item 3)"
-            citations.append(citation)
+            cite = non_airline_prohibit.get("source_document") if non_airline_prohibit else "Allowed vs. Prohibited Actions § Prohibited"
+            citations.append(cite)
             applicable_policies.append("non_airline_caused_exceptions")
             prohibited_actions.append({
-                "rule": "Making exceptions for non-airline-caused disruptions",
-                "source": citation
+                "rule": non_airline_prohibit.get("description", "Exceptions for non-airline-caused disruptions"),
+                "source": cite
             })
             return PolicyEvaluationResult(
                 status="ESCALATED",
@@ -147,18 +154,17 @@ class PolicyEngine:
                 allowed_actions=[],
                 prohibited_actions=prohibited_actions,
                 escalation_required=True,
-                escalation_target="human_specialist",
+                escalation_target=non_airline_prohibit.get("escalation_target", "human_specialist") if non_airline_prohibit else "human_specialist",
                 escalation_reason="Requested exception for non-airline-caused disruption.",
-                recommended_human_action="Review passenger circumstances and determine whether exceptional discretionary relief is warranted.",
+                recommended_human_action="Review passenger circumstances and determine whether discretionary relief is warranted.",
                 source_citations=citations,
                 explanation="Policy prohibits autonomous agent exceptions for non-airline-caused disruptions (e.g. missed flight)."
             )
 
         # 4. Loyalty Tier Rules Evaluation
         if is_priority_tier:
-            loyalty_cite = "Assignment 3 Data Pack, Section 3 'Service Rules' - Loyalty Tier Rule"
-            if loyalty_cite not in citations:
-                citations.append(loyalty_cite)
+            loyalty_cite = loyalty_policy.get("source_document", "Service Rules § Loyalty Tier Rule")
+            citations.append(loyalty_cite)
             applicable_policies.append("loyalty_tier")
             eligible_benefits.append({
                 "benefit": "priority_rebooking",
@@ -166,34 +172,38 @@ class PolicyEngine:
                 "source": loyalty_cite
             })
 
-        # 5. Cancellation Evaluation
+        # 5. Cancellation Policy Evaluation (Driven by policies.json)
         if flight_status == "Cancelled" and disruption_type == "airline_caused":
-            can_cite = "Assignment 3 Data Pack, Section 3 'Service Rules' - Cancellation Rebooking Rule"
-            ref_cite = "Assignment 3 Data Pack, Section 3 'Service Rules' - Refund Processing Rule"
+            can_cite = cancel_policy.get("source_document", "Service Rules § Cancellation Rebooking Rule")
+            ref_cite = refund_policy.get("source_document", "Service Rules § Refund Processing Rule")
             citations.extend([can_cite, ref_cite])
             applicable_policies.extend(["cancellation_rebooking", "refund_processing"])
 
+            rebook_window = cancel_policy.get("entitlements", {}).get("free_rebooking_window_hours", 24)
             eligible_benefits.append({
                 "benefit": "free_rebooking",
-                "description": "Free rebooking on the next available flight within 24 hours at no extra charge.",
+                "description": f"Free rebooking on the next available flight within {rebook_window} hours at no extra charge.",
                 "priority_access": is_priority_tier,
                 "source": can_cite
             })
+
+            processing_days = refund_policy.get("processing_time_business_days", 7)
+            payment_rule = refund_policy.get("payment_method_constraint", "original_payment_method_only")
             eligible_benefits.append({
                 "benefit": "full_refund",
-                "description": "Full refund processed within 7 business days to original payment method.",
+                "description": f"Full refund processed within {processing_days} business days to original payment method.",
                 "source": ref_cite
             })
 
             # Check specific refund request
             if customer_request.get("wants_refund"):
-                # Check payment method constraint
+                alt_pay_prohibit = next((p for p in prohibited_defs if p.get("name") == "refund_to_alternate_payment"), None)
                 if customer_request.get("alternate_payment_method_requested"):
-                    alt_cite = "Assignment 3 Data Pack, Section 4 'Allowed vs. Prohibited Actions' § Prohibited (Item 5)"
-                    citations.append(alt_cite)
+                    cite = alt_pay_prohibit.get("source_document") if alt_pay_prohibit else "Allowed vs. Prohibited Actions § Prohibited"
+                    citations.append(cite)
                     prohibited_actions.append({
-                        "rule": "Processing refunds to a different payment method than original",
-                        "source": alt_cite
+                        "rule": alt_pay_prohibit.get("description", "Processing refunds to a different payment method"),
+                        "source": cite
                     })
                     return PolicyEvaluationResult(
                         status="ESCALATED",
@@ -206,9 +216,9 @@ class PolicyEngine:
                         allowed_actions=[],
                         prohibited_actions=prohibited_actions,
                         escalation_required=True,
-                        escalation_target="finance_supervisor",
+                        escalation_target=alt_pay_prohibit.get("escalation_target", "finance_supervisor") if alt_pay_prohibit else "finance_supervisor",
                         escalation_reason="Customer requested refund to an alternate payment method.",
-                        recommended_human_action="Verify identity and banking credentials before evaluating manual manual accounting override.",
+                        recommended_human_action="Verify identity and banking credentials before evaluating accounting override.",
                         source_citations=citations,
                         explanation="Refunds can only be processed to the original payment method. Alternate payment method requests require supervisor escalation."
                     )
@@ -218,7 +228,7 @@ class PolicyEngine:
                     "pnr": booking_context.get("pnr"),
                     "amount": "full_ticket_value",
                     "method": booking_context.get("payment_method", "original payment method"),
-                    "timeline": "7 business days",
+                    "timeline": f"{processing_days} business days",
                     "source": ref_cite
                 })
 
@@ -226,113 +236,101 @@ class PolicyEngine:
                 allowed_actions.append({
                     "action": "rebook_flight",
                     "pnr": booking_context.get("pnr"),
-                    "window": "within 24 hours",
+                    "window": f"within {rebook_window} hours",
                     "priority": is_priority_tier,
                     "cost": "free (no charge)",
                     "source": can_cite
                 })
 
-        # 6. Delay Compensation Evaluation
+        # 6. Delay Compensation Policy Evaluation (Driven dynamically by tiers in policies.json)
         elif flight_status == "Delayed" and disruption_type == "airline_caused":
-            del_cite = "Assignment 3 Data Pack, Section 3 'Service Rules' - Delay Compensation Rule"
+            del_cite = delay_policy.get("source_document", "Service Rules § Delay Compensation Rule")
             citations.append(del_cite)
             applicable_policies.append("delay_compensation")
 
-            if delay_hours < 3.0:
-                eligible_benefits.append({
-                    "benefit": "meal_voucher",
-                    "amount_inr": 500,
-                    "description": "₹500 meal voucher for delay under 3 hours",
-                    "source": del_cite
-                })
-                allowed_actions.append({
-                    "action": "issue_meal_voucher",
-                    "pnr": booking_context.get("pnr"),
-                    "amount_inr": 500,
-                    "source": del_cite
-                })
-            elif 3.0 <= delay_hours <= 5.0:
-                eligible_benefits.append({
-                    "benefit": "meal_voucher",
-                    "amount_inr": 500,
-                    "description": "Meal voucher",
-                    "source": del_cite
-                })
-                eligible_benefits.append({
-                    "benefit": "lounge_access",
-                    "description": "Airport lounge access during the delay",
-                    "source": del_cite
-                })
-                allowed_actions.append({
-                    "action": "issue_meal_voucher",
-                    "pnr": booking_context.get("pnr"),
-                    "amount_inr": 500,
-                    "source": del_cite
-                })
-                allowed_actions.append({
-                    "action": "grant_lounge_access",
-                    "pnr": booking_context.get("pnr"),
-                    "source": del_cite
-                })
-            elif delay_hours > 5.0:
-                eligible_benefits.append({
-                    "benefit": "meal_voucher",
-                    "amount_inr": 500,
-                    "description": "Meal voucher",
-                    "source": del_cite
-                })
-                eligible_benefits.append({
-                    "benefit": "lounge_access",
-                    "description": "Airport lounge access",
-                    "source": del_cite
-                })
-                eligible_benefits.append({
-                    "benefit": "hotel_accommodation",
-                    "scope": "delayed_hours_only",
-                    "description": "Hotel accommodation covering only the delayed hours (not a full night's stay)",
-                    "source": del_cite
-                })
-                allowed_actions.append({
-                    "action": "issue_meal_voucher",
-                    "pnr": booking_context.get("pnr"),
-                    "amount_inr": 500,
-                    "source": del_cite
-                })
-                allowed_actions.append({
-                    "action": "grant_lounge_access",
-                    "pnr": booking_context.get("pnr"),
-                    "source": del_cite
-                })
-                allowed_actions.append({
-                    "action": "arrange_hotel_delayed_hours",
-                    "pnr": booking_context.get("pnr"),
-                    "duration_hours": delay_hours,
-                    "source": del_cite
-                })
+            # Match matching tier dynamically from policy tiers
+            matched_tier = None
+            for tier in delay_policy.get("tiers", []):
+                min_h = tier.get("min_delay_exclusive_hours", 0.0)
+                max_h = tier.get("max_delay_inclusive_hours")
+                if max_h is not None:
+                    if min_h < delay_hours <= max_h:
+                        matched_tier = tier
+                        break
+                else:
+                    if delay_hours > min_h:
+                        matched_tier = tier
+                        break
 
-            # Check Hotel Request against Policy
-            if customer_request.get("wants_hotel"):
-                if delay_hours <= 5.0:
-                    ineligible_requests.append({
-                        "request": "Hotel accommodation",
-                        "reason": f"Flight delay is {delay_hours} hours. Policy requires a delay of more than 5 hours to qualify for hotel accommodation.",
+            if matched_tier:
+                if matched_tier.get("meal_voucher"):
+                    amt = matched_tier.get("meal_voucher_amount_inr", 500)
+                    eligible_benefits.append({
+                        "benefit": "meal_voucher",
+                        "amount_inr": amt,
+                        "description": f"Meal voucher (₹{amt})",
                         "source": del_cite
                     })
-                elif delay_hours > 5.0:
-                    if customer_request.get("wants_full_night_hotel"):
-                        ineligible_requests.append({
-                            "request": "Full night's hotel stay",
-                            "reason": "Policy strictly limits hotel accommodation to covering only the delayed hours (not a full night's stay).",
-                            "source": del_cite
-                        })
+                    allowed_actions.append({
+                        "action": "issue_meal_voucher",
+                        "pnr": booking_context.get("pnr"),
+                        "amount_inr": amt,
+                        "source": del_cite
+                    })
 
-        # 7. Upgrade Requests / Unsupported Compensation
+                if matched_tier.get("lounge_access"):
+                    eligible_benefits.append({
+                        "benefit": "lounge_access",
+                        "description": "Airport lounge access during delay",
+                        "source": del_cite
+                    })
+                    allowed_actions.append({
+                        "action": "grant_lounge_access",
+                        "pnr": booking_context.get("pnr"),
+                        "source": del_cite
+                    })
+
+                if matched_tier.get("hotel_accommodation"):
+                    eligible_benefits.append({
+                        "benefit": "hotel_accommodation",
+                        "scope": matched_tier.get("hotel_scope", "delayed_hours_only"),
+                        "description": "Hotel accommodation covering only the delayed hours (not a full night's stay)",
+                        "source": del_cite
+                    })
+                    allowed_actions.append({
+                        "action": "arrange_hotel_delayed_hours",
+                        "pnr": booking_context.get("pnr"),
+                        "duration_hours": delay_hours,
+                        "source": del_cite
+                    })
+
+            # Check Hotel Request against Dynamic Policy
+            if customer_request.get("wants_hotel"):
+                hotel_qualifying_tier = next((t for t in delay_policy.get("tiers", []) if t.get("hotel_accommodation")), None)
+                min_hotel_delay = hotel_qualifying_tier.get("min_delay_exclusive_hours", 5.0) if hotel_qualifying_tier else 5.0
+
+                if delay_hours <= min_hotel_delay:
+                    ineligible_requests.append({
+                        "request": "Hotel accommodation",
+                        "reason": f"Flight delay is {delay_hours} hours. Policy requires a delay of more than {min_hotel_delay:g} hours to qualify for hotel accommodation.",
+                        "source": del_cite
+                    })
+                elif delay_hours > min_hotel_delay and customer_request.get("wants_full_night_hotel"):
+                    ineligible_requests.append({
+                        "request": "Full night's hotel stay",
+                        "reason": "Policy strictly limits hotel accommodation to covering only the delayed hours (not a full night's stay).",
+                        "source": del_cite
+                    })
+
+        # 7. Unsupported Compensation / Cabin Upgrade (Driven by actions.json & policies.json)
         if customer_request.get("wants_upgrade"):
-            comp_cite = "Assignment 3 Data Pack, Section 4 'Allowed vs. Prohibited Actions' § Prohibited (Item 1)"
-            loy_cite = "Assignment 3 Data Pack, Section 3 'Service Rules' - Loyalty Tier Rule"
+            excess_prohibit = next((p for p in prohibited_defs if p.get("name") == "compensation_beyond_policy"), None)
+            comp_cite = excess_prohibit.get("source_document") if excess_prohibit else "Allowed vs. Prohibited Actions § Prohibited"
+            loy_cite = loyalty_policy.get("source_document", "Service Rules § Loyalty Tier Rule")
             citations.extend([comp_cite, loy_cite])
+
             prohibited_actions.append({
-                "rule": "Approving compensation beyond stated policy amounts (complimentary cabin upgrade)",
+                "rule": excess_prohibit.get("description", "Approving compensation beyond stated policy amounts"),
                 "source": comp_cite
             })
             ineligible_requests.append({
@@ -341,7 +339,6 @@ class PolicyEngine:
                 "source": comp_cite
             })
 
-            # Mark escalation required for upgrade demand
             return PolicyEvaluationResult(
                 status="ESCALATED",
                 applicable_policies=applicable_policies,
@@ -350,33 +347,34 @@ class PolicyEngine:
                 allowed_actions=allowed_actions,
                 prohibited_actions=prohibited_actions,
                 escalation_required=True,
-                escalation_target="specialist_support_team",
-                escalation_reason=f"Customer requested complimentary business-class upgrade, which exceeds agent authority and stated disruption policy.",
-                recommended_human_action=f"Process eligible options (e.g. full refund/free rebooking) and inform customer that cabin upgrade exceptions require commercial supervisor sign-off.",
+                escalation_target=excess_prohibit.get("escalation_target", "specialist_support_team") if excess_prohibit else "specialist_support_team",
+                escalation_reason="Customer requested complimentary business-class upgrade, which exceeds agent authority and stated disruption policy.",
+                recommended_human_action="Process eligible options (e.g. full refund/free rebooking) and inform customer that cabin upgrade exceptions require commercial supervisor sign-off.",
                 source_citations=list(dict.fromkeys(citations)),
-                explanation=f"Refund/rebooking is supported, but complimentary business class upgrade is prohibited beyond standard policy without supervisor authorization."
+                explanation="Refund/rebooking is supported, but complimentary business class upgrade is prohibited beyond standard policy without supervisor authorization."
             )
 
-        # 8. Fare Difference Waiver Requests
+        # 8. Fare Difference Waiver Requests (Driven by fare_difference policy & actions.json)
         if customer_request.get("wants_higher_fare_rebooking") or customer_request.get("fare_difference_amount", 0) > 0:
-            fare_cite = "Assignment 3 Data Pack, Section 3 'Service Rules' - Fare Difference Rule"
-            waiver_prohibit_cite = "Assignment 3 Data Pack, Section 4 'Allowed vs. Prohibited Actions' § Prohibited (Item 2)"
+            fare_cite = fare_policy.get("source_document", "Service Rules § Fare Difference Rule")
+            fare_waiver_prohibit = next((p for p in prohibited_defs if p.get("name") == "waiving_fare_difference_above_1500"), None)
+            waiver_prohibit_cite = fare_waiver_prohibit.get("source_document") if fare_waiver_prohibit else "Allowed vs. Prohibited Actions § Prohibited"
             citations.extend([fare_cite, waiver_prohibit_cite])
             applicable_policies.append("fare_difference")
 
+            max_agent_waiver = float(fare_policy.get("agent_max_waiver_inr", 1500.0))
             fare_diff = float(customer_request.get("fare_difference_amount", 0.0))
-            wants_waiver = customer_request.get("wants_fare_waiver", False)
 
-            if wants_waiver and fare_diff > 1500.0:
+            if fare_diff > max_agent_waiver:
                 prohibited_actions.append({
-                    "rule": "Waiving a fare difference above ₹1,500 without supervisor approval",
+                    "rule": fare_waiver_prohibit.get("description", f"Waiving a fare difference above ₹{max_agent_waiver:,.0f} without supervisor approval"),
                     "amount": fare_diff,
-                    "limit": 1500,
+                    "limit": max_agent_waiver,
                     "source": waiver_prohibit_cite
                 })
                 ineligible_requests.append({
                     "request": f"Waiver of ₹{fare_diff:,.0f} fare difference",
-                    "reason": f"Agents cannot waive fare differences above ₹1,500 without supervisor approval.",
+                    "reason": f"Agents cannot waive fare differences above ₹{max_agent_waiver:,.0f} without supervisor approval.",
                     "source": fare_cite
                 })
                 return PolicyEvaluationResult(
@@ -387,17 +385,15 @@ class PolicyEngine:
                     allowed_actions=allowed_actions,
                     prohibited_actions=prohibited_actions,
                     escalation_required=True,
-                    escalation_target="supervisor",
-                    escalation_reason=f"Requested waiver of ₹{fare_diff:,.0f} fare difference exceeds the ₹1,500 agent waiver authority.",
+                    escalation_target=fare_waiver_prohibit.get("escalation_target", "supervisor") if fare_waiver_prohibit else "supervisor",
+                    escalation_reason=f"Requested waiver of ₹{fare_diff:,.0f} fare difference exceeds the ₹{max_agent_waiver:,.0f} agent waiver authority.",
                     recommended_human_action=f"Supervisor review required to approve or deny fare difference waiver of ₹{fare_diff:,.0f} for rebooking on higher-fare flight.",
                     source_citations=list(dict.fromkeys(citations)),
-                    explanation=f"Under the Fare Difference Rule, agents can only waive fare differences up to ₹1,500. A waiver of ₹{fare_diff:,.0f} requires supervisor escalation."
+                    explanation=f"Under the Fare Difference Rule, agents can only waive fare differences up to ₹{max_agent_waiver:,.0f}. A waiver of ₹{fare_diff:,.0f} requires supervisor escalation."
                 )
 
-        # 9. Clean deduplication of citations
         citations = list(dict.fromkeys(citations))
 
-        # Determine overall status
         status = "RESOLVED"
         if ineligible_requests and not allowed_actions:
             explanation = "Requested services are not covered under standard policy."

@@ -28,7 +28,7 @@ class ResolutionAgent:
         self.audit_logger = audit_logger or AuditLogger()
         self.policy_engine = PolicyEngine(data_service=self.data_service)
         self.decision_engine = DecisionEngine(policy_engine=self.policy_engine)
-        self.intent_agent = IntentAgent()
+        self.intent_agent = IntentAgent(llm_provider=self.llm_provider)
         self.response_agent = ResponseAgent(llm_provider=self.llm_provider)
 
     def handle_message(

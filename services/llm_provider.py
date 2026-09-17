@@ -157,9 +157,9 @@ class GeminiProvider(BaseLLMProvider):
 
 
 class GroqProvider(BaseLLMProvider):
-    def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
+    def __init__(self, api_key: str, model: str = "openai/gpt-oss-120b"):
         self.api_key = api_key
-        self.model = model or "llama-3.3-70b-versatile"
+        self.model = model or "openai/gpt-oss-120b"
 
     def generate(self, system_prompt: str, messages: List[Dict[str, str]], **kwargs) -> str:
         try:

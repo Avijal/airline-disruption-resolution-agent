@@ -1,11 +1,17 @@
 import re
+import json
+import logging
 from typing import Dict, Any, List, Optional
+from services.llm_provider import BaseLLMProvider, DeterministicFallbackProvider
+
+logger = logging.getLogger("airline_resolution_agent.intent")
 
 
 class IntentAgent:
     """
-    Analyzes natural language messages to extract intents, entities,
-    frustration markers, and policy escalation triggers.
+    Analyzes natural language messages using LLM understanding when available,
+    with a robust deterministic parser fallback.
+    Extracts intents, entities, frustration markers, and escalation triggers.
     """
 
     FRUSTRATION_KEYWORDS = [
@@ -27,7 +33,58 @@ class IntentAgent:
         "AIRLINE", "GROUND", "SYSTEM", "PERSON"
     }
 
+    def __init__(self, llm_provider: Optional[BaseLLMProvider] = None):
+        self.llm_provider = llm_provider
+
     def parse(self, message: str, customer_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        # If live LLM provider is available, use LLM for semantic extraction
+        if self.llm_provider and not isinstance(self.llm_provider, DeterministicFallbackProvider):
+            llm_result = self._parse_with_llm(message)
+            if llm_result:
+                return llm_result
+
+        # Deterministic semantic parser
+        return self._parse_deterministic(message)
+
+    def _parse_with_llm(self, message: str) -> Optional[Dict[str, Any]]:
+        system_prompt = """You are an NLP entity and intent extraction engine for an airline customer support agent.
+Analyze the customer's message and return ONLY a valid JSON object with these exact keys:
+{
+  "intents": ["request_refund" | "request_rebooking" | "request_hotel" | "request_amenities" | "request_upgrade" | "request_fare_waiver" | "legal_threat" | "formal_complaint" | "status_query" | "general_inquiry"],
+  "is_frustrated": true/false,
+  "frustration_keywords": ["extracted words indicating anger/distress"],
+  "is_legal_threat": true/false (true if customer threatens legal action, lawsuit, court, lawyer),
+  "is_formal_complaint": true/false (true if customer threatens formal regulatory complaints),
+  "wants_refund": true/false,
+  "wants_rebooking": true/false,
+  "wants_hotel": true/false,
+  "wants_full_night_hotel": true/false (true if customer specifically asks for full night, overnight, or whole night stay),
+  "wants_upgrade": true/false (true if customer asks for business class or cabin upgrade),
+  "wants_higher_fare_rebooking": true/false,
+  "wants_fare_waiver": true/false (true if asking to waive fare difference or rebook on higher fare flight without paying),
+  "fare_difference_amount": float or 0.0 (e.g. 2000.0 if ₹2,000 is mentioned),
+  "alternate_payment_method_requested": true/false (true if refund to different card/cash is requested),
+  "detected_pnr": string or null
+}
+Return ONLY the raw JSON object. No explanation or markdown fences."""
+
+        try:
+            response_text = self.llm_provider.generate(
+                system_prompt=system_prompt,
+                messages=[{"role": "user", "content": message}]
+            )
+            clean_json = response_text.strip()
+            if clean_json.startswith("```"):
+                clean_json = re.sub(r"^```(?:json)?", "", clean_json)
+                clean_json = re.sub(r"```$", "", clean_json).strip()
+            data = json.loads(clean_json)
+            data["raw_message"] = message
+            return data
+        except Exception as e:
+            logger.warning(f"LLM intent parsing failed or returned non-JSON: {e}. Falling back to deterministic parser.")
+            return None
+
+    def _parse_deterministic(self, message: str) -> Dict[str, Any]:
         msg_lower = message.lower()
 
         # 1. Detect Frustration
@@ -38,7 +95,7 @@ class IntentAgent:
         is_legal_threat = any(w in msg_lower for w in self.LEGAL_KEYWORDS)
         is_formal_complaint = any(w in msg_lower for w in self.FORMAL_COMPLAINT_KEYWORDS)
 
-        # 3. Extract PNR (alphanumeric, containing both letters & numbers, e.g. SK4821X, TR1190B, WL7742)
+        # 3. Extract PNR (alphanumeric, containing both letters & numbers)
         detected_pnr = None
         pnr_candidates = re.findall(r"\b([A-Z0-9]{5,7})\b", message.upper())
         for cand in pnr_candidates:
