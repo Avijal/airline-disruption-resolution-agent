@@ -1,0 +1,84 @@
+[
+  {
+    "pnr": "SK4821X",
+    "customer_id": "priya_nair",
+    "customer_name": "Priya Nair",
+    "segments": [
+      {
+        "segment_id": "SK4821X-1",
+        "flight_number": "SK-204",
+        "route": "Delhi → Goa",
+        "origin": "Delhi",
+        "destination": "Goa",
+        "date": "Wed 23 Sep 2026",
+        "scheduled_departure": "18:40",
+        "status": "Cancelled",
+        "disruption_type": "airline_caused",
+        "disruption_reason": "operational reasons",
+        "delay_hours": 0,
+        "cabin_class": "Economy"
+      },
+      {
+        "segment_id": "SK4821X-2",
+        "flight_number": "Return",
+        "route": "Goa → Delhi",
+        "origin": "Goa",
+        "destination": "Delhi",
+        "date": "Fri 25 Sep 2026",
+        "scheduled_departure": "16:20",
+        "status": "Unaffected",
+        "disruption_type": "none",
+        "disruption_reason": null,
+        "delay_hours": 0,
+        "cabin_class": "Economy"
+      }
+    ],
+    "payment_method": "Original Credit Card (ending 4012)"
+  },
+  {
+    "pnr": "TR1190B",
+    "customer_id": "arvind_kulkarni",
+    "customer_name": "Arvind Kulkarni",
+    "segments": [
+      {
+        "segment_id": "TR1190B-1",
+        "flight_number": "SK-118",
+        "route": "Mumbai → Bengaluru",
+        "origin": "Mumbai",
+        "destination": "Bengaluru",
+        "date": "Wed 23 Sep 2026",
+        "scheduled_departure": "07:10",
+        "new_departure": "11:10",
+        "status": "Delayed",
+        "disruption_type": "airline_caused",
+        "disruption_reason": "operational delay",
+        "delay_hours": 4.0,
+        "cabin_class": "Economy"
+      }
+    ],
+    "payment_method": "Original Net Banking (ending 8821)"
+  },
+  {
+    "pnr": "WL7742",
+    "customer_id": "meher_kaur",
+    "customer_name": "Meher Kaur",
+    "segments": [
+      {
+        "segment_id": "WL7742-1",
+        "flight_number": "SK-305",
+        "route": "Delhi → Hyderabad",
+        "origin": "Delhi",
+        "destination": "Hyderabad",
+        "date": "Wed 23 Sep 2026",
+        "scheduled_departure": "14:00",
+        "new_departure": "20:00",
+        "status": "Delayed",
+        "disruption_type": "airline_caused",
+        "disruption_reason": "operational delay",
+        "delay_hours": 6.0,
+        "cabin_class": "Economy"
+      }
+    ],
+    "payment_method": "Original UPI (ending 9931)"
+  }
+]

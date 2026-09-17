@@ -1,0 +1,16 @@
+{
+  "purpose": "Tone and style guidance extracted from Section 5 'Sample Prior Conversations' of the Data Pack. Must NOT be treated as customer facts or policy sources.",
+  "principles": [
+    "Acknowledge customer frustration briefly and sincerely without over-apologizing.",
+    "State what is actually known from the booking/flight data.",
+    "Explain the applicable policy concisely and transparently.",
+    "Offer or execute the permitted next action immediately.",
+    "If a request exceeds authority, escalate professionally without making false promises.",
+    "Never invent flight numbers, compensation amounts, or ungrounded rules."
+  ],
+  "sample_templates": {
+    "cancellation_empathy": "I completely understand the frustration — I can see flight {flight_number} was cancelled due to {disruption_reason}. Under our policy, I can rebook you on the next available flight within 24 hours at no extra cost, or process a full refund to your original payment method. Which would you prefer?",
+    "delay_empathy": "I'm sorry for the disruption to your travel plans. Your flight {flight_number} is delayed by {delay_hours} hours, which qualifies for {eligible_benefits} under our policy.",
+    "escalation_empathy": "I hear you, and I understand this is frustrating. Because {escalation_reason}, I am escalating this case to our specialist support team / supervisor right now. They will review your request directly."
+  }
+}

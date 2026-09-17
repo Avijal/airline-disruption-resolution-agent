@@ -1,0 +1,82 @@
+{
+  "allowed_actions": [
+    {
+      "action_id": "ACT_REBOOK_AIRLINE_CAUSED",
+      "name": "rebook_next_available_flight",
+      "description": "Rebook the customer on the next available flight within 24 hours at no charge (airline-caused disruption)",
+      "authority": "agent",
+      "source_document": "Allowed vs. Prohibited Actions § Allowed (Item 1)"
+    },
+    {
+      "action_id": "ACT_ISSUE_VOUCHER_LOUNGE",
+      "name": "issue_delay_compensation",
+      "description": "Issue meal vouchers and lounge access per the delay compensation rule",
+      "authority": "agent",
+      "source_document": "Allowed vs. Prohibited Actions § Allowed (Item 2)"
+    },
+    {
+      "action_id": "ACT_ARRANGE_HOTEL_DELAYED_HOURS",
+      "name": "arrange_hotel_accommodation",
+      "description": "Arrange hotel accommodation for the delayed-hours portion, where the delay qualifies (> 5 hours)",
+      "authority": "agent",
+      "source_document": "Allowed vs. Prohibited Actions § Allowed (Item 3)"
+    },
+    {
+      "action_id": "ACT_INITIATE_REFUND",
+      "name": "initiate_refund",
+      "description": "Initiate a refund request for airline-caused cancellations (full refund to original payment method within 7 business days)",
+      "authority": "agent",
+      "source_document": "Allowed vs. Prohibited Actions § Allowed (Item 4)"
+    },
+    {
+      "action_id": "ACT_PROVIDE_FLIGHT_STATUS",
+      "name": "provide_flight_status",
+      "description": "Provide the customer's own booking and flight status information",
+      "authority": "agent",
+      "source_document": "Allowed vs. Prohibited Actions § Allowed (Item 5)"
+    }
+  ],
+  "prohibited_actions": [
+    {
+      "rule_id": "PROHIBIT_EXCESS_COMPENSATION",
+      "name": "compensation_beyond_policy",
+      "description": "Approving any compensation beyond the stated policy amounts (e.g., complimentary cabin upgrades, unsolicited cash)",
+      "escalation_required": true,
+      "escalation_target": "human_specialist",
+      "source_document": "Allowed vs. Prohibited Actions § Prohibited (Item 1)"
+    },
+    {
+      "rule_id": "PROHIBIT_FARE_WAIVER_OVER_LIMIT",
+      "name": "waiving_fare_difference_above_1500",
+      "description": "Waiving a fare difference above ₹1,500 without supervisor approval",
+      "escalation_required": true,
+      "escalation_target": "supervisor",
+      "source_document": "Allowed vs. Prohibited Actions § Prohibited (Item 2)"
+    },
+    {
+      "rule_id": "PROHIBIT_NON_AIRLINE_EXCEPTION",
+      "name": "non_airline_caused_exceptions",
+      "description": "Making exceptions for non-airline-caused disruptions (e.g., customer missed the flight)",
+      "escalation_required": true,
+      "escalation_target": "human_specialist",
+      "source_document": "Allowed vs. Prohibited Actions § Prohibited (Item 3)"
+    },
+    {
+      "rule_id": "PROHIBIT_LEGAL_FORMAL_COMPLAINTS",
+      "name": "legal_or_formal_complaint",
+      "description": "Handling threats of legal action or formal complaints — must be escalated immediately",
+      "escalation_required": true,
+      "escalation_target": "specialist_support_team",
+      "immediate_escalation": true,
+      "source_document": "Allowed vs. Prohibited Actions § Prohibited (Item 4)"
+    },
+    {
+      "rule_id": "PROHIBIT_NON_ORIGINAL_PAYMENT_REFUND",
+      "name": "refund_to_alternate_payment",
+      "description": "Processing refunds to a different payment method than the original",
+      "escalation_required": true,
+      "escalation_target": "finance_supervisor",
+      "source_document": "Allowed vs. Prohibited Actions § Prohibited (Item 5)"
+    }
+  ]
+}

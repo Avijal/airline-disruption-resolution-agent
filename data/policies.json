@@ -1,0 +1,77 @@
+{
+  "cancellation_rebooking": {
+    "policy_id": "POL-CAN-01",
+    "rule_name": "Cancellation Rebooking Rule",
+    "description": "If a flight is cancelled by the airline, the customer is entitled to a free rebooking on the next available flight within 24 hours, or a full refund, customer's choice.",
+    "condition": "flight_cancelled_by_airline",
+    "entitlements": {
+      "free_rebooking_window_hours": 24,
+      "full_refund_allowed": true,
+      "customer_choice": true
+    },
+    "source_document": "Service Rules § Cancellation Rebooking Rule"
+  },
+  "delay_compensation": {
+    "policy_id": "POL-DEL-01",
+    "rule_name": "Delay Compensation Rule",
+    "description": "Tiered compensation for airline-caused delays: under 3 hours receives ₹500 meal voucher; more than 3 hours receives meal voucher and lounge access; more than 5 hours receives meal voucher, lounge access, and hotel accommodation covering only the delayed hours (not a full night's stay).",
+    "tiers": [
+      {
+        "min_delay_exclusive_hours": 0.0,
+        "max_delay_inclusive_hours": 3.0,
+        "meal_voucher": true,
+        "meal_voucher_amount_inr": 500,
+        "lounge_access": false,
+        "hotel_accommodation": false,
+        "hotel_scope": null,
+        "description": "Delay under 3 hours: ₹500 meal voucher"
+      },
+      {
+        "min_delay_exclusive_hours": 3.0,
+        "max_delay_inclusive_hours": 5.0,
+        "meal_voucher": true,
+        "meal_voucher_amount_inr": 500,
+        "lounge_access": true,
+        "hotel_accommodation": false,
+        "hotel_scope": null,
+        "description": "Delay more than 3 hours: meal voucher + lounge access"
+      },
+      {
+        "min_delay_exclusive_hours": 5.0,
+        "max_delay_inclusive_hours": null,
+        "meal_voucher": true,
+        "meal_voucher_amount_inr": 500,
+        "lounge_access": true,
+        "hotel_accommodation": true,
+        "hotel_scope": "delayed_hours_only_not_full_night",
+        "description": "Delay more than 5 hours: meal voucher + hotel accommodation, covering only the delayed hours (not a full night's stay)"
+      }
+    ],
+    "source_document": "Service Rules § Delay Compensation Rule"
+  },
+  "refund_processing": {
+    "policy_id": "POL-REF-01",
+    "rule_name": "Refund Processing Rule",
+    "description": "Refunds for airline-caused cancellations are processed in full within 7 business days. Refunds are issued to the original payment method only.",
+    "condition": "airline_caused_cancellation",
+    "processing_time_business_days": 7,
+    "payment_method_constraint": "original_payment_method_only",
+    "source_document": "Service Rules § Refund Processing Rule"
+  },
+  "fare_difference": {
+    "policy_id": "POL-FAR-01",
+    "rule_name": "Fare Difference Rule",
+    "description": "If a customer voluntarily chooses to rebook on a higher-fare flight (not airline-caused), they must pay the fare difference. Agents cannot waive fare differences above ₹1,500 without supervisor approval.",
+    "agent_max_waiver_inr": 1500,
+    "requires_supervisor_above_inr": 1500,
+    "source_document": "Service Rules § Fare Difference Rule"
+  },
+  "loyalty_tier": {
+    "policy_id": "POL-LOY-01",
+    "rule_name": "Loyalty Tier Rule",
+    "description": "Gold and Platinum tier customers get priority rebooking (first access to next-available seats) but no additional compensation beyond the standard policy.",
+    "priority_rebooking_tiers": ["Gold", "Platinum"],
+    "additional_compensation_entitled": false,
+    "source_document": "Service Rules § Loyalty Tier Rule"
+  }
+}

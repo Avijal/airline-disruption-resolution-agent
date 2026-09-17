@@ -1,0 +1,17 @@
+{
+  "dataset_metadata": {
+    "title": "AIONOS Recruitment Assignment 3 - Airline Disruption Customer Support",
+    "source_file": "Assignment 3_DataPack_CustomerResolutionAgent.pdf",
+    "exercise_date": "Wednesday, 23 September 2026",
+    "strict_grounding_rule": "The supplied data pack is the ONLY business source of truth. No outside airline policies, compensation amounts, or flight inventory may be invented."
+  },
+  "citation_map": {
+    "cancellation_rebooking": "Assignment 3 Data Pack, Section 3 'Service Rules' - Cancellation Rebooking Rule",
+    "delay_compensation": "Assignment 3 Data Pack, Section 3 'Service Rules' - Delay Compensation Rule",
+    "refund_processing": "Assignment 3 Data Pack, Section 3 'Service Rules' - Refund Processing Rule",
+    "fare_difference": "Assignment 3 Data Pack, Section 3 'Service Rules' - Fare Difference Rule",
+    "loyalty_tier": "Assignment 3 Data Pack, Section 3 'Service Rules' - Loyalty Tier Rule",
+    "allowed_actions": "Assignment 3 Data Pack, Section 4 'Allowed vs. Prohibited Actions for the Agent' - Allowed",
+    "prohibited_actions": "Assignment 3 Data Pack, Section 4 'Allowed vs. Prohibited Actions for the Agent' - Prohibited"
+  }
+}
