@@ -186,6 +186,36 @@ class GroqProvider(BaseLLMProvider):
             return DeterministicFallbackProvider().generate(system_prompt, messages, **kwargs)
 
 
+class XAIProvider(BaseLLMProvider):
+    def __init__(self, api_key: str, model: str = "grok-2-latest"):
+        self.api_key = api_key
+        self.model = model or "grok-2-latest"
+
+    def generate(self, system_prompt: str, messages: List[Dict[str, str]], **kwargs) -> str:
+        try:
+            import httpx
+
+            url = "https://api.x.ai/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            full_msgs = [{"role": "system", "content": system_prompt}] + messages
+            payload = {
+                "model": self.model,
+                "messages": full_msgs,
+                "temperature": 0.2
+            }
+            with httpx.Client(timeout=15.0) as client:
+                res = client.post(url, headers=headers, json=payload)
+                res.raise_for_status()
+                data = res.json()
+                return data["choices"][0]["message"]["content"]
+        except Exception as e:
+            logger.warning(f"xAI Grok API call failed: {e}. Falling back to deterministic provider.")
+            return DeterministicFallbackProvider().generate(system_prompt, messages, **kwargs)
+
+
 def get_llm_provider(
     provider_name: Optional[str] = None,
     api_key: Optional[str] = None,
@@ -207,5 +237,7 @@ def get_llm_provider(
         return AnthropicProvider(api_key=key, model=mdl or "claude-3-5-sonnet-20241022")
     elif prov == "groq" and key:
         return GroqProvider(api_key=key, model=mdl or "llama-3.3-70b-versatile")
+    elif prov in ["grok", "xai"] and key:
+        return XAIProvider(api_key=key, model=mdl or "grok-2-latest")
 
     return DeterministicFallbackProvider()

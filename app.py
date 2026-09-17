@@ -143,7 +143,7 @@ with st.sidebar:
         st.caption("Switch between offline mode or your live API key:")
         llm_choice = st.selectbox(
             "Provider",
-            ["Built-in Offline (No Key Needed)", "Google Gemini", "OpenAI", "Anthropic Claude", "Groq"],
+            ["Built-in Offline (No Key Needed)", "xAI Grok", "Groq (Fast & Free)", "Google Gemini", "OpenAI", "Anthropic Claude"],
             index=0
         )
         api_key_input = st.text_input(
@@ -152,20 +152,22 @@ with st.sidebar:
             value=os.getenv("LLM_API_KEY", ""),
             help="Enter your API key here. It will be used in-memory for this session only."
         )
-        default_model = "gemini-1.5-flash" if "Gemini" in llm_choice else ("gpt-4o" if "OpenAI" in llm_choice else ("claude-3-5-sonnet-20241022" if "Anthropic" in llm_choice else ("llama-3.3-70b-versatile" if "Groq" in llm_choice else "")))
+        default_model = "grok-2-latest" if "xAI" in llm_choice else ("llama-3.3-70b-versatile" if "Groq" in llm_choice else ("gemini-1.5-flash" if "Gemini" in llm_choice else ("gpt-4o" if "OpenAI" in llm_choice else ("claude-3-5-sonnet-20241022" if "Anthropic" in llm_choice else ""))))
         model_input = st.text_input("Model Name", value=default_model)
 
         if st.button("Apply API Key", use_container_width=True):
             from services.llm_provider import get_llm_provider
             prov_code = "deterministic"
-            if "Gemini" in llm_choice:
+            if "xAI" in llm_choice:
+                prov_code = "grok"
+            elif "Groq" in llm_choice:
+                prov_code = "groq"
+            elif "Gemini" in llm_choice:
                 prov_code = "gemini"
             elif "OpenAI" in llm_choice:
                 prov_code = "openai"
             elif "Anthropic" in llm_choice:
                 prov_code = "anthropic"
-            elif "Groq" in llm_choice:
-                prov_code = "groq"
 
             new_provider = get_llm_provider(
                 provider_name=prov_code,
