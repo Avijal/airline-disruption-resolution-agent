@@ -3,6 +3,18 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
+from pathlib import Path
+
+# Automatically load .env if present
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path)
+    else:
+        load_dotenv()
+except ImportError:
+    pass
 
 logger = logging.getLogger("airline_resolution_agent.llm")
 
@@ -21,7 +33,6 @@ class DeterministicFallbackProvider(BaseLLMProvider):
     """
 
     def generate(self, system_prompt: str, messages: List[Dict[str, str]], **kwargs) -> str:
-        # If context was injected via kwargs or system_prompt, use it
         context = kwargs.get("resolution_context")
         if context:
             return self._format_from_context(context)
@@ -120,7 +131,7 @@ class AnthropicProvider(BaseLLMProvider):
 class GeminiProvider(BaseLLMProvider):
     def __init__(self, api_key: str, model: str = "gemini-1.5-flash"):
         self.api_key = api_key
-        self.model = model
+        self.model = model or "gemini-1.5-flash"
 
     def generate(self, system_prompt: str, messages: List[Dict[str, str]], **kwargs) -> str:
         try:
@@ -145,17 +156,56 @@ class GeminiProvider(BaseLLMProvider):
             return DeterministicFallbackProvider().generate(system_prompt, messages, **kwargs)
 
 
-def get_llm_provider() -> BaseLLMProvider:
-    """Factory creating configured LLM provider from environment variables."""
-    provider_name = os.getenv("LLM_PROVIDER", "deterministic").strip().lower()
-    api_key = os.getenv("LLM_API_KEY", "").strip()
-    model = os.getenv("LLM_MODEL", "")
+class GroqProvider(BaseLLMProvider):
+    def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
+        self.api_key = api_key
+        self.model = model or "llama-3.3-70b-versatile"
 
-    if provider_name == "openai" and api_key:
-        return OpenAIProvider(api_key=api_key, model=model or "gpt-4o")
-    elif provider_name == "anthropic" and api_key:
-        return AnthropicProvider(api_key=api_key, model=model or "claude-3-5-sonnet-20241022")
-    elif provider_name in ["gemini", "google"] and api_key:
-        return GeminiProvider(api_key=api_key, model=model or "gemini-1.5-flash")
+    def generate(self, system_prompt: str, messages: List[Dict[str, str]], **kwargs) -> str:
+        try:
+            import httpx
+
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            full_msgs = [{"role": "system", "content": system_prompt}] + messages
+            payload = {
+                "model": self.model,
+                "messages": full_msgs,
+                "temperature": 0.2
+            }
+            with httpx.Client(timeout=15.0) as client:
+                res = client.post(url, headers=headers, json=payload)
+                res.raise_for_status()
+                data = res.json()
+                return data["choices"][0]["message"]["content"]
+        except Exception as e:
+            logger.warning(f"Groq API call failed: {e}. Falling back to deterministic provider.")
+            return DeterministicFallbackProvider().generate(system_prompt, messages, **kwargs)
+
+
+def get_llm_provider(
+    provider_name: Optional[str] = None,
+    api_key: Optional[str] = None,
+    model: Optional[str] = None
+) -> BaseLLMProvider:
+    """
+    Factory creating configured LLM provider.
+    Checks arguments first, then environment variables, then defaults to deterministic fallback.
+    """
+    prov = (provider_name or os.getenv("LLM_PROVIDER", "deterministic")).strip().lower()
+    key = (api_key if api_key is not None else os.getenv("LLM_API_KEY", "")).strip()
+    mdl = (model or os.getenv("LLM_MODEL", "")).strip()
+
+    if (prov in ["gemini", "google"]) and key:
+        return GeminiProvider(api_key=key, model=mdl or "gemini-1.5-flash")
+    elif prov == "openai" and key:
+        return OpenAIProvider(api_key=key, model=mdl or "gpt-4o")
+    elif prov == "anthropic" and key:
+        return AnthropicProvider(api_key=key, model=mdl or "claude-3-5-sonnet-20241022")
+    elif prov == "groq" and key:
+        return GroqProvider(api_key=key, model=mdl or "llama-3.3-70b-versatile")
 
     return DeterministicFallbackProvider()

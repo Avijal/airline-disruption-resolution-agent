@@ -138,6 +138,50 @@ with st.sidebar:
             st.markdown(f"**Payment:** `{booking.get('payment_method')}`")
 
     st.markdown("---")
+    # LLM & API Configuration Expander
+    with st.expander("⚙️ LLM Model & API Key", expanded=False):
+        st.caption("Switch between offline mode or your live API key:")
+        llm_choice = st.selectbox(
+            "Provider",
+            ["Built-in Offline (No Key Needed)", "Google Gemini", "OpenAI", "Anthropic Claude", "Groq"],
+            index=0
+        )
+        api_key_input = st.text_input(
+            "API Key",
+            type="password",
+            value=os.getenv("LLM_API_KEY", ""),
+            help="Enter your API key here. It will be used in-memory for this session only."
+        )
+        default_model = "gemini-1.5-flash" if "Gemini" in llm_choice else ("gpt-4o" if "OpenAI" in llm_choice else ("claude-3-5-sonnet-20241022" if "Anthropic" in llm_choice else ("llama-3.3-70b-versatile" if "Groq" in llm_choice else "")))
+        model_input = st.text_input("Model Name", value=default_model)
+
+        if st.button("Apply API Key", use_container_width=True):
+            from services.llm_provider import get_llm_provider
+            prov_code = "deterministic"
+            if "Gemini" in llm_choice:
+                prov_code = "gemini"
+            elif "OpenAI" in llm_choice:
+                prov_code = "openai"
+            elif "Anthropic" in llm_choice:
+                prov_code = "anthropic"
+            elif "Groq" in llm_choice:
+                prov_code = "groq"
+
+            new_provider = get_llm_provider(
+                provider_name=prov_code,
+                api_key=api_key_input,
+                model=model_input
+            )
+            workflow.agent.llm_provider = new_provider
+            workflow.agent.response_agent.llm_provider = new_provider
+            st.session_state.active_provider_label = f"{llm_choice} ({model_input or 'default'})" if api_key_input else "Offline Deterministic Engine"
+            st.success("API settings applied successfully!")
+            st.rerun()
+
+    active_label = st.session_state.get("active_provider_label", "Offline Deterministic Engine")
+    st.caption(f"🤖 **Active Engine:** `{active_label}`")
+
+    st.markdown("---")
     if st.button("🔄 Reset Conversation", use_container_width=True):
         active_id = cust.get("id") if cust else None
         workflow.reset(new_customer_id=active_id)
