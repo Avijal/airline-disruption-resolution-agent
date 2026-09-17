@@ -316,6 +316,29 @@ with st.sidebar:
         use_container_width=True
     )
 
+    # Deliverables Download Section
+    ppt_file = root_dir / "outputs" / "AIONOS_Assignment3_ResolutionAgent.pptx"
+    if ppt_file.exists():
+        with open(ppt_file, "rb") as f:
+            st.download_button(
+                label="📊 Download 10-Slide PPT (.pptx)",
+                data=f.read(),
+                file_name="AIONOS_Assignment3_ResolutionAgent.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                use_container_width=True
+            )
+
+    video_file = root_dir / "outputs" / "SkyResolve_Demo_Walkthrough.mp4"
+    if video_file.exists():
+        with open(video_file, "rb") as f:
+            st.download_button(
+                label="🎥 Download Demo Video (.mp4)",
+                data=f.read(),
+                file_name="SkyResolve_Demo_Walkthrough.mp4",
+                mime="video/mp4",
+                use_container_width=True
+            )
+
     if st.button("🔄 Reset Conversation", use_container_width=True):
         st.session_state.workflow = AirlineSupportWorkflow(data_service=st.session_state.data_service)
         if selected_id:
