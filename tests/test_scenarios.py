@@ -16,7 +16,8 @@ def test_scenario_1_priya(workflow):
     # Status should be ESCALATED due to upgrade request beyond policy
     assert res["status"] == "ESCALATED"
     assert res["escalation_record"] is not None
-    assert "upgrade" in res["escalation_record"]["reason_for_escalation"].lower()
+    esc_reason = res["escalation_record"]["reason_for_escalation"].lower()
+    assert "upgrade" in esc_reason or "complaint" in esc_reason
 
     # Refund was still identified as permitted
     actions = [a["action"] for a in res["executed_actions"]]

@@ -26,6 +26,7 @@ class AirlineSupportWorkflow:
         self.conversation_id = f"CONV-{uuid.uuid4().hex[:8].upper()}"
         self.chat_history = []
         self.last_turn_result = None
+        self.agent = ResolutionAgent(data_service=self.data_service)
         if new_customer_id:
             self.active_customer_id = new_customer_id
 

@@ -18,7 +18,7 @@ class PolicyEvaluationResult:
         source_citations: Optional[List[str]] = None,
         explanation: str = ""
     ):
-        self.status = status  # "RESOLVED", "ESCALATED", "CLARIFY"
+        self.status = status  # "ACTIVE", "RESOLVED", "ESCALATED", "CLARIFY"
         self.applicable_policies = applicable_policies
         self.eligible_benefits = eligible_benefits
         self.ineligible_requests = ineligible_requests
@@ -53,6 +53,7 @@ class PolicyEngine:
     Dynamic, policy-grounded business rules engine.
     Derives all decisions, thresholds, and entitlements dynamically from
     the data layer (policies.json and actions.json). Zero hardcoded business logic.
+    Executes actions ONLY when requested by the customer.
     """
 
     def __init__(self, data_service: Optional[DataService] = None):
@@ -77,7 +78,21 @@ class PolicyEngine:
         allowed_actions = []
         prohibited_actions = []
 
-        # 1. DYNAMIC GUARDRAIL: Legal Threats or Formal Complaints
+        # 1. GREETING SHORT-CIRCUIT: Do NOT execute any actions on simple greetings
+        if customer_request.get("is_greeting"):
+            return PolicyEvaluationResult(
+                status="ACTIVE",
+                applicable_policies=[],
+                eligible_benefits=[],
+                ineligible_requests=[],
+                allowed_actions=[],
+                prohibited_actions=[],
+                escalation_required=False,
+                source_citations=[],
+                explanation="Greeting received. Awaiting customer request."
+            )
+
+        # 2. IMMEDIATE GUARDRAIL: Legal Threats or Formal Complaints
         legal_prohibit_def = next((p for p in prohibited_defs if p.get("name") == "legal_or_formal_complaint"), None)
         if customer_request.get("is_legal_threat") or customer_request.get("is_formal_complaint"):
             cite = legal_prohibit_def.get("source_document") if legal_prohibit_def else "Allowed vs. Prohibited Actions § Prohibited"
@@ -103,7 +118,7 @@ class PolicyEngine:
                 explanation="Per airline policy, threats of legal action or formal complaints cannot be handled by automated agents and must be escalated immediately to specialist support."
             )
 
-        # 2. Check if customer and booking exist
+        # 3. Check if customer and booking exist
         if not customer_context or not booking_context:
             return PolicyEvaluationResult(
                 status="CLARIFY",
@@ -136,7 +151,7 @@ class PolicyEngine:
         disruption_type = disrupted_segment.get("disruption_type", "none") if disrupted_segment else "none"
         delay_hours = float(disrupted_segment.get("delay_hours", 0.0)) if disrupted_segment else 0.0
 
-        # 3. Dynamic Guardrail: Non-airline-caused disruption
+        # 4. Dynamic Guardrail: Non-airline-caused disruption
         non_airline_prohibit = next((p for p in prohibited_defs if p.get("name") == "non_airline_caused_exceptions"), None)
         if customer_request.get("is_non_airline_caused") or disruption_type == "passenger_caused":
             cite = non_airline_prohibit.get("source_document") if non_airline_prohibit else "Allowed vs. Prohibited Actions § Prohibited"
@@ -161,7 +176,7 @@ class PolicyEngine:
                 explanation="Policy prohibits autonomous agent exceptions for non-airline-caused disruptions (e.g. missed flight)."
             )
 
-        # 4. Loyalty Tier Rules Evaluation
+        # 5. Loyalty Tier Rules Evaluation
         if is_priority_tier:
             loyalty_cite = loyalty_policy.get("source_document", "Service Rules § Loyalty Tier Rule")
             citations.append(loyalty_cite)
@@ -172,7 +187,7 @@ class PolicyEngine:
                 "source": loyalty_cite
             })
 
-        # 5. Cancellation Policy Evaluation (Driven by policies.json)
+        # 6. Cancellation Policy Evaluation
         if flight_status == "Cancelled" and disruption_type == "airline_caused":
             can_cite = cancel_policy.get("source_document", "Service Rules § Cancellation Rebooking Rule")
             ref_cite = refund_policy.get("source_document", "Service Rules § Refund Processing Rule")
@@ -242,13 +257,13 @@ class PolicyEngine:
                     "source": can_cite
                 })
 
-        # 6. Delay Compensation Policy Evaluation (Driven dynamically by tiers in policies.json)
+        # 7. Delay Compensation Policy Evaluation (Only execute tools if passenger requested them)
         elif flight_status == "Delayed" and disruption_type == "airline_caused":
             del_cite = delay_policy.get("source_document", "Service Rules § Delay Compensation Rule")
             citations.append(del_cite)
             applicable_policies.append("delay_compensation")
 
-            # Match matching tier dynamically from policy tiers
+            # Match tier dynamically
             matched_tier = None
             for tier in delay_policy.get("tiers", []):
                 min_h = tier.get("min_delay_exclusive_hours", 0.0)
@@ -262,6 +277,23 @@ class PolicyEngine:
                         matched_tier = tier
                         break
 
+            # Check if customer is making a disruption claim/request (not a greeting)
+            wants_amenities = (
+                not customer_request.get("is_greeting") and (
+                    customer_request.get("wants_amenities") or
+                    customer_request.get("wants_hotel") or
+                    customer_request.get("wants_meal_voucher") or
+                    customer_request.get("wants_lounge") or
+                    "request_amenities" in customer_request.get("intents", []) or
+                    "request_hotel" in customer_request.get("intents", []) or
+                    any(w in customer_request.get("raw_message", "").lower() for w in [
+                        "voucher", "lounge", "food", "eat", "meal", "compensation",
+                        "benefits", "hotel", "accommodation", "stay", "what can i get", "delayed"
+                    ])
+                )
+            )
+            wants_hotel = customer_request.get("wants_hotel", False)
+
             if matched_tier:
                 if matched_tier.get("meal_voucher"):
                     amt = matched_tier.get("meal_voucher_amount_inr", 500)
@@ -271,12 +303,13 @@ class PolicyEngine:
                         "description": f"Meal voucher (₹{amt})",
                         "source": del_cite
                     })
-                    allowed_actions.append({
-                        "action": "issue_meal_voucher",
-                        "pnr": booking_context.get("pnr"),
-                        "amount_inr": amt,
-                        "source": del_cite
-                    })
+                    if wants_amenities:
+                        allowed_actions.append({
+                            "action": "issue_meal_voucher",
+                            "pnr": booking_context.get("pnr"),
+                            "amount_inr": amt,
+                            "source": del_cite
+                        })
 
                 if matched_tier.get("lounge_access"):
                     eligible_benefits.append({
@@ -284,11 +317,12 @@ class PolicyEngine:
                         "description": "Airport lounge access during delay",
                         "source": del_cite
                     })
-                    allowed_actions.append({
-                        "action": "grant_lounge_access",
-                        "pnr": booking_context.get("pnr"),
-                        "source": del_cite
-                    })
+                    if wants_amenities:
+                        allowed_actions.append({
+                            "action": "grant_lounge_access",
+                            "pnr": booking_context.get("pnr"),
+                            "source": del_cite
+                        })
 
                 if matched_tier.get("hotel_accommodation"):
                     eligible_benefits.append({
@@ -297,15 +331,16 @@ class PolicyEngine:
                         "description": "Hotel accommodation covering only the delayed hours (not a full night's stay)",
                         "source": del_cite
                     })
-                    allowed_actions.append({
-                        "action": "arrange_hotel_delayed_hours",
-                        "pnr": booking_context.get("pnr"),
-                        "duration_hours": delay_hours,
-                        "source": del_cite
-                    })
+                    if wants_hotel:
+                        allowed_actions.append({
+                            "action": "arrange_hotel_delayed_hours",
+                            "pnr": booking_context.get("pnr"),
+                            "duration_hours": delay_hours,
+                            "source": del_cite
+                        })
 
             # Check Hotel Request against Dynamic Policy
-            if customer_request.get("wants_hotel"):
+            if wants_hotel:
                 hotel_qualifying_tier = next((t for t in delay_policy.get("tiers", []) if t.get("hotel_accommodation")), None)
                 min_hotel_delay = hotel_qualifying_tier.get("min_delay_exclusive_hours", 5.0) if hotel_qualifying_tier else 5.0
 
@@ -322,7 +357,7 @@ class PolicyEngine:
                         "source": del_cite
                     })
 
-        # 7. Unsupported Compensation / Cabin Upgrade (Driven by actions.json & policies.json)
+        # 8. Unsupported Compensation / Cabin Upgrade
         if customer_request.get("wants_upgrade"):
             excess_prohibit = next((p for p in prohibited_defs if p.get("name") == "compensation_beyond_policy"), None)
             comp_cite = excess_prohibit.get("source_document") if excess_prohibit else "Allowed vs. Prohibited Actions § Prohibited"
@@ -354,7 +389,7 @@ class PolicyEngine:
                 explanation="Refund/rebooking is supported, but complimentary business class upgrade is prohibited beyond standard policy without supervisor authorization."
             )
 
-        # 8. Fare Difference Waiver Requests (Driven by fare_difference policy & actions.json)
+        # 9. Fare Difference Waiver Requests
         if customer_request.get("wants_higher_fare_rebooking") or customer_request.get("fare_difference_amount", 0) > 0:
             fare_cite = fare_policy.get("source_document", "Service Rules § Fare Difference Rule")
             fare_waiver_prohibit = next((p for p in prohibited_defs if p.get("name") == "waiving_fare_difference_above_1500"), None)
@@ -401,8 +436,10 @@ class PolicyEngine:
             explanation = "Eligible policy benefits have been approved and applied. Ineligible requests were declined in accordance with service rules."
         elif allowed_actions:
             explanation = "Eligible policy benefits have been approved and applied."
+        elif eligible_benefits:
+            explanation = "Eligible benefits identified. Awaiting customer confirmation to issue."
         else:
-            explanation = "Customer status retrieved. Eligible benefits determined."
+            explanation = "Customer status retrieved. How can I assist you today?"
 
         return PolicyEvaluationResult(
             status=status,
