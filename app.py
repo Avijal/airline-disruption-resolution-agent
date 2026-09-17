@@ -10,6 +10,17 @@ root_dir = Path(__file__).resolve().parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
+import importlib
+
+# Force dynamic hot-reloading of project modules so background server changes take effect immediately
+for pkg_prefix in ["core.", "agents.", "services.", "tools."]:
+    for mod_name in list(sys.modules.keys()):
+        if mod_name.startswith(pkg_prefix):
+            try:
+                importlib.reload(sys.modules[mod_name])
+            except Exception:
+                pass
+
 from services.data_service import DataService
 from agents.workflow import AirlineSupportWorkflow
 from core.audit import AuditLogger
@@ -155,7 +166,8 @@ with st.sidebar:
 
     if selected_id != st.session_state.selected_customer_id:
         st.session_state.selected_customer_id = selected_id
-        workflow.reset(new_customer_id=selected_id)
+        st.session_state.workflow = AirlineSupportWorkflow(data_service=st.session_state.data_service)
+        st.session_state.workflow.set_active_customer(selected_id)
         st.rerun()
 
     cust = data_service.get_customer_by_id(selected_id) if selected_id else None
@@ -305,7 +317,9 @@ with st.sidebar:
     )
 
     if st.button("🔄 Reset Conversation", use_container_width=True):
-        workflow.reset(new_customer_id=selected_id)
+        st.session_state.workflow = AirlineSupportWorkflow(data_service=st.session_state.data_service)
+        if selected_id:
+            st.session_state.workflow.set_active_customer(selected_id)
         st.rerun()
 
 # --- MAIN AREA ---
