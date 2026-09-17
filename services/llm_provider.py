@@ -159,7 +159,11 @@ class GeminiProvider(BaseLLMProvider):
 class GroqProvider(BaseLLMProvider):
     def __init__(self, api_key: str, model: str = "openai/gpt-oss-120b"):
         self.api_key = api_key
-        self.model = model or "openai/gpt-oss-120b"
+        # Ensure default model is one of the confirmed working Groq models
+        if not model or model == "llama-3.3-70b-versatile":
+            self.model = "openai/gpt-oss-120b"
+        else:
+            self.model = model
 
     def generate(self, system_prompt: str, messages: List[Dict[str, str]], **kwargs) -> str:
         try:
@@ -178,6 +182,11 @@ class GroqProvider(BaseLLMProvider):
             }
             with httpx.Client(timeout=15.0) as client:
                 res = client.post(url, headers=headers, json=payload)
+                if res.status_code == 404 and self.model != "openai/gpt-oss-120b":
+                    # Automatically retry with confirmed working Groq model
+                    payload["model"] = "openai/gpt-oss-120b"
+                    self.model = "openai/gpt-oss-120b"
+                    res = client.post(url, headers=headers, json=payload)
                 res.raise_for_status()
                 data = res.json()
                 return data["choices"][0]["message"]["content"]
@@ -236,7 +245,7 @@ def get_llm_provider(
     elif prov == "anthropic" and key:
         return AnthropicProvider(api_key=key, model=mdl or "claude-3-5-sonnet-20241022")
     elif prov == "groq" and key:
-        return GroqProvider(api_key=key, model=mdl or "llama-3.3-70b-versatile")
+        return GroqProvider(api_key=key, model=mdl or "openai/gpt-oss-120b")
     elif prov in ["grok", "xai"] and key:
         return XAIProvider(api_key=key, model=mdl or "grok-2-latest")
 
