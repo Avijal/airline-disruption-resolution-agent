@@ -23,6 +23,18 @@ Support centers experience massive inbound surges. Conventional LLM chatbots fai
 
 ---
 
+## 🎯 Mandatory Assignment Deliverables
+| Deliverable | Location / Access | Description |
+|---|---|---|
+| **Clickable Web Prototype** | Run `streamlit run app.py` at `http://localhost:8501` | Executive aviation dashboard with live chat, scenario switcher, grounding inspector & audit log |
+| **10-Slide Presentation (.pptx)** | [`outputs/AIONOS_Assignment3_ResolutionAgent.pptx`](outputs/AIONOS_Assignment3_ResolutionAgent.pptx) | Professional 16:9 widescreen slide deck |
+| **Slide Deck Guide & Speaker Notes** | [`docs/presentation_slides.md`](docs/presentation_slides.md) | Full slide-by-slide transcription and 15-minute defense speaker notes |
+| **Demo Video Guide & Screenplay** | [`docs/demo_video_guide.md`](docs/demo_video_guide.md) | Turnkey 5–7 min screen recording script with word-for-word voiceover |
+| **Demo Video Link (Google Drive)** | `[Paste your Google Drive link here]` | Public open-access video recording of the prototype walkthrough |
+| **Automated Test Suite** | Run `pytest tests/ -v` | 17 tests (100% passing) verifying policy boundaries, security & extensibility |
+
+---
+
 ## 3. System Architecture
 
 ```
