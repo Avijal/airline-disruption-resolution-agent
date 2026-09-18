@@ -27,7 +27,7 @@ Support centers experience massive inbound surges. Conventional LLM chatbots fai
 | Deliverable | Location / Access | Description |
 |---|---|---|
 | **Clickable Web Prototype** | Run `streamlit run app.py` at `http://localhost:8501` | Executive aviation dashboard with live chat, scenario switcher, grounding inspector & audit log |
-| **10-Slide Presentation (.pptx)** | [`outputs/AIONOS_Assignment3_ResolutionAgent.pptx`](outputs/AIONOS_Assignment3_ResolutionAgent.pptx) | Professional 16:9 widescreen slide deck |
+| **10-Slide Presentation (.pptx)** | [`https://docs.google.com/presentation/d/1kPUlWZRR5YqSGKDBaMacMfbFK2MSWTeJ/edit?usp=sharing&ouid=111284376624057233679&rtpof=true&sd=true`](outputs/AIONOS_Assignment3_ResolutionAgent.pptx) | Professional 16:9 widescreen slide deck |
 | **Slide Deck Guide & Speaker Notes** | [`docs/presentation_slides.md`](docs/presentation_slides.md) | Full slide-by-slide transcription and 15-minute defense speaker notes |
 | **Demo Video Link (Google Drive)** | [Watch / Download Video (Google Drive)](https://drive.google.com/file/d/170zxXne-fI2pkfRjc7nwK5ozCXg1scDg/view?usp=sharing) | Public open-access video recording of the prototype walkthrough |
 | **Automated Test Suite** | Run `pytest tests/ -v` | 17 tests (100% passing) verifying policy boundaries, security & extensibility |
